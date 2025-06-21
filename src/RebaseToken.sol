@@ -13,31 +13,30 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
  * @notice The interest in the contract can only decrease
  * @notice Each user will have their own interest rate which is the global interest rate at the time of depositing
  */
-
 contract RebaseToken is ERC20, Ownable, AccessControl {
     error RebaseToken__InterestRateCanOnlyDecrease(uint256 oldInterestRate, uint256 newInterestRate);
 
     uint256 private constant PRECISION_FACTOR = 1e18;
     uint256 private s_interestRate = 5e10;
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
-    mapping(address=>uint256) private s_userInterestRate;
-    mapping(address=>uint256) private s_userLastUpdatedTimestamp;
+    mapping(address => uint256) private s_userInterestRate;
+    mapping(address => uint256) private s_userLastUpdatedTimestamp;
 
     event InterestRateSet(uint256 newInterestRate);
 
-    constructor() ERC20("Rebase Token", "RBT") Ownable(msg.sender){}
+    constructor() ERC20("Rebase Token", "RBT") Ownable(msg.sender) {}
 
     function grantMintAndBurnRole(address _account) external onlyOwner {
         _grantRole(MINT_AND_BURN_ROLE, _account);
     }
 
     /**
-     * @notice Set the interest rate in the contract 
+     * @notice Set the interest rate in the contract
      * @param _newInterestRate New interest rate to set
      * @dev The interest rate can only decrease
      */
     function setInterestRate(uint256 _newInterestRate) external onlyOwner {
-        if(_newInterestRate >= s_interestRate){
+        if (_newInterestRate >= s_interestRate) {
             revert RebaseToken__InterestRateCanOnlyDecrease(s_interestRate, _newInterestRate);
         }
         s_interestRate = _newInterestRate;
@@ -49,18 +48,18 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @param _user The user to get the principal balance for
      * @return The principal balance of the user
      */
-    function principalBalanceOf(address _user) external view returns(uint256){
+    function principalBalanceOf(address _user) external view returns (uint256) {
         return super.balanceOf(_user);
     }
 
     /**
      * @notice Mint the user tokens when they deposit into the vault
-     * @param _to The user to mint the tokens to  
-     * @param _amount The amount of tokens to mint 
+     * @param _to The user to mint the tokens to
+     * @param _amount The amount of tokens to mint
      */
-    function mint(address _to, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE) {
+    function mint(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE) {
         _mintAccruedInterest(_to);
-        s_userInterestRate[_to] = s_interestRate;
+        s_userInterestRate[_to] = _userInterestRate;
         _mint(_to, _amount);
     }
 
@@ -95,12 +94,12 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @param _user The user to calculate the balance for
      * @return The final balance of the user
      */
-    function balanceOf(address _user) public view override returns(uint256){
+    function balanceOf(address _user) public view override returns (uint256) {
         // get the current principal balance
         // multiply the principal balance by the interest that has accumulated since the last update
-        
+
         uint256 currentPrincipalBalance = super.balanceOf(_user);
-        if(currentPrincipalBalance == 0){
+        if (currentPrincipalBalance == 0) {
             return 0;
         }
         return (currentPrincipalBalance * _calculateUserAccumulatedInterestSinceLastUpdate(_user)) / PRECISION_FACTOR;
@@ -112,13 +111,13 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @param _amount The amount of tokens to transfer
      * @return True if the transfer was successful
      */
-    function transfer(address _recipient, uint256 _amount) public override returns(bool){
+    function transfer(address _recipient, uint256 _amount) public override returns (bool) {
         _mintAccruedInterest(_recipient);
         _mintAccruedInterest(msg.sender);
-        if(_amount == type(uint256).max){
+        if (_amount == type(uint256).max) {
             _amount = balanceOf(msg.sender);
         }
-        if(balanceOf(_recipient) == 0){
+        if (balanceOf(_recipient) == 0) {
             s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
         }
         return super.transfer(_recipient, _amount);
@@ -131,13 +130,13 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @param _amount The amount of tokens to transfer
      * @return True if the transfer was successful
      */
-    function transferFrom(address _sender, address _recipient, uint256 _amount) public override returns(bool){
+    function transferFrom(address _sender, address _recipient, uint256 _amount) public override returns (bool) {
         _mintAccruedInterest(_recipient);
         _mintAccruedInterest(_sender);
-        if(_amount == type(uint256).max){
+        if (_amount == type(uint256).max) {
             _amount = balanceOf(_sender);
         }
-        if(balanceOf(_recipient) == 0){
+        if (balanceOf(_recipient) == 0) {
             s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
         }
         return super.transferFrom(_sender, _recipient, _amount);
@@ -148,7 +147,11 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @param _user The user to calculate the interest for
      * @return linearInterest Accumulate interest
      */
-    function _calculateUserAccumulatedInterestSinceLastUpdate(address _user) internal view returns(uint256 linearInterest){
+    function _calculateUserAccumulatedInterestSinceLastUpdate(address _user)
+        internal
+        view
+        returns (uint256 linearInterest)
+    {
         // interest will have linear growth with time
         // principal amount + (principal amount * interest * time elapsed)
         // principal amount (1 + (user interest rate * time elapsed))
@@ -161,16 +164,16 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @notice Get the interest rate that is currently set for the contract. Any future depositors will recieve this rate
      * @return Interest rate for the contract
      */
-    function getInterestRate() external view returns(uint256){
+    function getInterestRate() external view returns (uint256) {
         return s_interestRate;
     }
 
     /**
      * @notice Get interest rate for the user
-     * @param _user: The user to get the interest rate for 
+     * @param _user: The user to get the interest rate for
      * @return The interest rate of the user
      */
-    function getUserInterestRate(address _user) external view returns(uint256){
+    function getUserInterestRate(address _user) external view returns (uint256) {
         return s_userInterestRate[_user];
     }
 }

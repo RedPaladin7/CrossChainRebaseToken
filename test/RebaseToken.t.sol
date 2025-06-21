@@ -24,7 +24,7 @@ contract RebaseTokenTest is Test {
     }
 
     function addRewardsToVault(uint256 rewardAmount) public {
-        (bool success, ) = payable(address(vault)).call{value: rewardAmount}("");
+        (bool success,) = payable(address(vault)).call{value: rewardAmount}("");
     }
 
     function testDepositLinear(uint256 amount) public {
@@ -32,7 +32,7 @@ contract RebaseTokenTest is Test {
 
         vm.startPrank(user);
         vm.deal(user, amount);
-        vault.deposit{value:amount}();
+        vault.deposit{value: amount}();
 
         uint256 startBalance = rebaseToken.balanceOf(user);
         console.log("startBalance ", startBalance);
@@ -55,11 +55,11 @@ contract RebaseTokenTest is Test {
 
     function testRedeemStraightAway(uint256 amount) public {
         amount = bound(amount, 1e5, 1e32);
-        
+
         vm.startPrank(user);
         vm.deal(user, amount);
 
-        vault.deposit{value:amount}();
+        vault.deposit{value: amount}();
         assertEq(rebaseToken.balanceOf(user), amount);
         vault.redeem(type(uint256).max);
         assertEq(rebaseToken.balanceOf(user), 0);
@@ -129,9 +129,9 @@ contract RebaseTokenTest is Test {
     function testCannotCallMint() public {
         // Deposit funds
         vm.startPrank(user);
-        //uint256 interestRate = rebaseToken.getInterestRate();
+        uint256 interestRate = rebaseToken.getInterestRate();
         vm.expectRevert();
-        rebaseToken.mint(user, SEND_VALUE);
+        rebaseToken.mint(user, SEND_VALUE, interestRate);
         vm.stopPrank();
     }
 
