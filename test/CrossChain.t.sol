@@ -77,6 +77,7 @@ contract CrossChainTest is Test{
         tokenAdminRegistrySepolia.acceptAdminRole(address(sourceRebaseToken));
         // linking token to pool in the token admin registry on sepolia
         tokenAdminRegistrySepolia.setPool(address(sourceRebaseToken), address(sourcePool));
+        // now the pool for the specefic token is set, and we dont need to manually call the mint function while bridging
         vm.stopPrank();
 
         // Deploying and configuring the destination chain 
@@ -110,6 +111,7 @@ contract CrossChainTest is Test{
         IRebaseToken remoteToken,
         Register.NetworkDetails memory remoteNetworkDetails
     ) public {
+        // configures the local token pool contract to recognize the remote pool on remote chain
         vm.selectFork(fork);
         vm.startPrank(owner);
         TokenPool.ChainUpdate[] memory chains = new TokenPool.ChainUpdate[](1);
@@ -183,11 +185,87 @@ contract CrossChainTest is Test{
         // on real chains this happens automatically
         // while testing we have to trigger this step manually
         // retrives pending message with last ccipSend from the given fork
+
         ccipLocalSimulatorFork.switchChainAndRouteMessage(remoteFork);
 
+        // message was routed and the mint function on the pool contract was called
         console.log("Remote user interest rate: %d", remoteToken.getUserInterestRate(alice));
         uint256 destBalance = IERC20(address(remoteToken)).balanceOf(alice);
         console.log("Remote balance after bridging: %d", destBalance);
         assertEq(destBalance, initalArbBalance + amountToBridge);
+    }
+
+    function testBridgeAllTokens() public {
+        configureTokenPool(
+            sepoliaFork, sourcePool, destPool, IRebaseToken(address(destRebaseToken)), arbSepoliaNetworkDetails
+        );
+        configureTokenPool(
+            arbSepoliaFork, destPool, sourcePool, IRebaseToken(address(sourceRebaseToken)), sepoliaNetworkDetails
+        );
+        vm.selectFork(sepoliaFork);
+        vm.deal(alice, SEND_VALUE);
+        vm.startPrank(alice);
+        Vault(payable(address(vault))).deposit{value: SEND_VALUE}();
+        console.log("Bridging %d tokens", SEND_VALUE);
+        assertEq(IERC20(address(sourceRebaseToken)).balanceOf(alice), SEND_VALUE);
+        assertEq(IERC20(address(destRebaseToken)).balanceOf(alice), 0);
+        vm.stopPrank();
+
+        bridgeTokens(
+            SEND_VALUE, 
+            sepoliaFork, 
+            arbSepoliaFork, 
+            sepoliaNetworkDetails, 
+            arbSepoliaNetworkDetails,
+            sourceRebaseToken, 
+            destRebaseToken
+        );
+        assertEq(IERC20(address(sourceRebaseToken)).balanceOf(alice), 0);
+        assertEq(IERC20(address(destRebaseToken)).balanceOf(alice), SEND_VALUE);
+    }
+
+    function testBridgeAllTokensBack() public {
+        configureTokenPool(
+            sepoliaFork, sourcePool, destPool, IRebaseToken(address(destRebaseToken)), arbSepoliaNetworkDetails
+        );
+        configureTokenPool(
+            arbSepoliaFork, destPool, sourcePool, IRebaseToken(address(sourceRebaseToken)), sepoliaNetworkDetails
+        );
+        vm.selectFork(sepoliaFork);
+        vm.deal(alice, SEND_VALUE);
+        vm.startPrank(alice);
+        Vault(payable(address(vault))).deposit{value: SEND_VALUE}();
+        console.log("Bridging %d tokens", SEND_VALUE);
+        assertEq(IERC20(address(sourceRebaseToken)).balanceOf(alice), SEND_VALUE);
+        assertEq(IERC20(address(sourceRebaseToken)).balanceOf(alice), SEND_VALUE);
+        vm.stopPrank();
+
+        bridgeTokens(
+            SEND_VALUE,
+            sepoliaFork,
+            arbSepoliaFork,
+            sepoliaNetworkDetails,
+            arbSepoliaNetworkDetails,
+            sourceRebaseToken, 
+            destRebaseToken
+        );
+
+        // bridging the tokens back 
+        vm.selectFork(arbSepoliaFork);
+        console.log("User balance before warp: %d", destRebaseToken.balanceOf(alice));
+        vm.warp(block.timestamp + 3600);
+        console.log("User balance after warp: %d", destRebaseToken.balanceOf(alice));
+        uint256 destBalance = IERC20(address(destRebaseToken)).balanceOf(alice);
+        console.log("Amount bridging back %d tokens", destBalance);
+        
+        bridgeTokens(
+            destBalance,
+            arbSepoliaFork,
+            sepoliaFork,
+            arbSepoliaNetworkDetails,
+            sepoliaNetworkDetails,
+            destRebaseToken, 
+            sourceRebaseToken
+        );
     }
 }
