@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 
 import {IRebaseToken} from "./interfaces/IRebaseToken.sol";
 
+// staking and rewarding mechanism on chain (not involved in cross chain transfers)
+// only used for depositing and redeeming on the same chain
 contract Vault {
     IRebaseToken private immutable i_rebaseToken;
 

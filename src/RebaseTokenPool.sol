@@ -7,9 +7,11 @@ import {IERC20} from "@ccip/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8
 import {Pool} from "@ccip/contracts/src/v0.8/ccip/libraries/Pool.sol";
 import {IRebaseToken} from "./interfaces/IRebaseToken.sol";
 
+// responsible for burning tokens on source chain and minting the same amount on the destination chain
+// in this protocol we are only allowing bridging same types of token
 contract RebaseTokenPool is TokenPool {
-    constructor(IERC20 _token, address[] memory _allowlist, address _rnmProxy, address _router)
-        TokenPool(_token, 18, _allowlist, _rnmProxy, _router)
+    constructor(IERC20 _token, address[] memory _allowlist, address _rmnProxy, address _router)
+        TokenPool(_token, 18, _allowlist, _rmnProxy, _router)
     {}
 
     function lockOrBurn(Pool.LockOrBurnInV1 calldata lockOrBurnIn)
